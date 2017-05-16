@@ -1,8 +1,6 @@
 from __future__ import division
 import numpy as np
-import pandas as pd
 import random as rnd
-from sklearn.metrics.pairwise import euclidean_distances as dist
 
 def signum(x):
     if np.sign(x)>0:
@@ -11,10 +9,6 @@ def signum(x):
         return 0
 
 #SVM
-
-def kernel(x1, x2):
-    gamma=1/70
-    return np.exp(-(-2*np.dot(x1,x2.T) + np.dot(x1,x1)+np.dot(x2,x2))*gamma)
 
 
 def find_bounds(alpha_i, alpha_j, y_i, y_j, C):
@@ -31,19 +25,21 @@ def bound_alpha(alpha_j,L,H):
     else:
         return alpha_j
 
-def h_wob(x1, x2, alpha_sup, y_sup):
-    summa = 0
-    for i in range(0, x1.shape[0]):
-        summa += alpha_sup[i,:] * y_sup[i,:] * kernel(x1[i,:],x2)
-    return summa
+
 
 
 class Classificator():
 
-    def __init__(self, C, n_iterations=100):
-        self.C = C
-        self.n_iterations = n_iterations
+    def __init__(self, C, gamma='auto',kernel_type ='rbf'):
+        self.kernels = {
+            'linear': self.kernel_linear,
+            'quadratic': self.kernel_quadratic,
+            'rbf': self.kernel_rbf
+        }
 
+        self.C = C
+        self.gamma = gamma
+        self.kernel_type = kernel_type
 
 
     def fit(self,X,y):
@@ -52,11 +48,15 @@ class Classificator():
         y=y.as_matrix()
         n_samples, n_features = X.shape
 
-        gamma = 1/n_samples
+        kernel = self.kernels[self.kernel_type]
+
+        if self.gamma == 'auto':
+            self.gamma = 1 / n_samples
+
         alpha = np.zeros((n_samples))
         count = 0
         eps=1
-        changed_alphas=0
+
 
 
         while (eps>0.0001):
@@ -89,12 +89,12 @@ class Classificator():
                 print(L, H)
 
 
-                self.b = y[j] - h_wob(self.x_sup, X[j, :], self.alpha_sup, self.y_sup)     # number
+                self.b = y[j] - self.h_wob(self.x_sup, X[j, :], self.alpha_sup, self.y_sup)     # number
 
 
 
-                error_i = signum (  (h_wob(self.x_sup, X[i, :], self.alpha_sup, self.y_sup) + self.b) - y_i   )  #number
-                error_j = signum (  (h_wob(self.x_sup, X[j, :], self.alpha_sup, self.y_sup) + self.b) - y_j   )        #number
+                error_i = signum (  (self.h_wob(self.x_sup, X[i, :], self.alpha_sup, self.y_sup) + self.b) - y_i   )  #number
+                error_j = signum (  (self.h_wob(self.x_sup, X[j, :], self.alpha_sup, self.y_sup) + self.b) - y_j   )        #number
 
 
                 alpha[j]= alpha_j - float((y_j * (error_i-error_j))/eta)
@@ -122,6 +122,23 @@ class Classificator():
         X= X.as_matrix()
         result = []
         for j in range(0,X.shape[0]):
-           result.append(signum((h_wob(self.x_sup, X[j, :], self.alpha_sup, self.y_sup) + self.b)))
+           result.append(signum((self.h_wob(self.x_sup, X[j, :], self.alpha_sup, self.y_sup) + self.b)))
         return result
+
+    def h_wob(self,x1, x2, alpha_sup, y_sup):
+        kernel = self.kernels[self.kernel_type]
+        summa = 0
+        for i in range(0, x1.shape[0]):
+            summa += alpha_sup[i, :] * y_sup[i, :] * kernel(x1[i, :], x2)
+        return summa
+    def kernel_rbf(self,x1, x2):
+
+        return np.exp(-(-2 * np.dot(x1, x2.T) + np.dot(x1, x1) + np.dot(x2, x2)) * self.gamma)
+
+    def kernel_linear(self, x1, x2):
+        return np.dot(x1, x2.T)
+
+    def kernel_quadratic(self, x1, x2):
+        return ((np.dot(x1, x2.T)+1) ** 2)
+
 
